@@ -1,4 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import presentationService from "../services/presentationService";
+
+const API_BASE_URL = 'https://slidegenius-production.up.railway.app/api';
 
 export type UserType = {
   id: string;
@@ -23,8 +26,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Check if user is already logged in
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
-    if (storedUser) {
+    const token = localStorage.getItem("token");
+    if (storedUser && token) {
       setUser(JSON.parse(storedUser));
+      presentationService.setToken(token);
     }
     setIsLoading(false);
   }, []);
@@ -32,19 +37,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      // For now, this is a mock implementation
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Mock successful login
-      const mockUser = {
-        id: "user_" + Math.random().toString(36).substr(2, 9),
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      console.log("Logging in....")
+
+      const response = await fetch(`${API_BASE_URL}/auth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
+
+      console.log("login res: ",response)
+
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+
+      const data = await response.json();
+      const token = data.access_token;
+
+      // Set the token in the presentation service
+      presentationService.setToken(token);
+
+      // Create user object
+      const user = {
+        id: data.user_id || email,
         email,
-        name: email.split("@")[0]
+        name: email.split('@')[0]
       };
       
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
+      setUser(user);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("token", token);
       return true;
     } catch (error) {
       console.error("Login error:", error);
@@ -57,19 +86,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (name: string, email: string, password: string) => {
     try {
       setIsLoading(true);
-      // Mock registration
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const mockUser = {
-        id: "user_" + Math.random().toString(36).substr(2, 9),
+      const params = new URLSearchParams({
         email,
+        password,
         name
-      };
+      });
       
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
-      return true;
+      const response = await fetch(`${API_BASE_URL}/auth/register?${params.toString()}`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Registration failed');
+      }
+
+      // After registration, log the user in
+      return login(email, password);
     } catch (error) {
       console.error("Registration error:", error);
       return false;
@@ -81,6 +114,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    presentationService.clearToken();
   };
 
   return (

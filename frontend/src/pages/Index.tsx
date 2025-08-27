@@ -40,7 +40,7 @@ const Index = () => {
       <div className="absolute top-0 right-0 m-6 z-50 flex gap-2">
         <Button 
           variant="outline" 
-          className="border-white/50 text-white hover:bg-white hover:text-primary"
+          className="border-white/50 text-primary hover:bg-white/90 hover:text-primary"
           asChild
         >
           <Link to="/login">

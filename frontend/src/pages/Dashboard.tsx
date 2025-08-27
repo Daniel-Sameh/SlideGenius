@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { presentationService, Presentation } from "@/services/presentationService";
+import presentationService, { Presentation } from "@/services/presentationService";
 import { 
   Plus, 
   Presentation as PresentationIcon,
@@ -35,11 +35,23 @@ export default function Dashboard() {
   const navigate = useNavigate();
   
   useEffect(() => {
-    if (user) {
-      const userPresentations = presentationService.getAllByUser(user.id);
-      setPresentations(userPresentations);
-    }
-  }, [user]);
+    const fetchPresentations = async () => {
+      if (user) {
+        try {
+          const userPresentations = await presentationService.getAllByUser();
+          setPresentations(userPresentations);
+        } catch (error) {
+          toast({
+            title: "Error loading presentations",
+            description: "Could not load your presentations. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    fetchPresentations();
+  }, [user, toast]);
   
   const handleCreateNew = () => {
     navigate("/create");
@@ -58,24 +70,29 @@ export default function Dashboard() {
     setIsDeleteDialogOpen(true);
   };
   
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteId) {
-      const success = presentationService.delete(deleteId);
-      if (success) {
-        setPresentations(prev => prev.filter(p => p.id !== deleteId));
-        toast({
-          title: "Presentation deleted",
-          description: "The presentation has been successfully deleted.",
-        });
-      } else {
+      try {
+        const success = await presentationService.deletePresentation(deleteId);
+        if (success) {
+          setPresentations(prev => prev.filter(p => p.id !== deleteId));
+          toast({
+            title: "Presentation deleted",
+            description: "The presentation has been successfully deleted.",
+          });
+        } else {
+          throw new Error('Failed to delete presentation');
+        }
+      } catch (error) {
         toast({
           title: "Error deleting presentation",
           description: "An error occurred while deleting the presentation.",
           variant: "destructive",
         });
+      } finally {
+        setIsDeleteDialogOpen(false);
+        setDeleteId(null);
       }
-      setIsDeleteDialogOpen(false);
-      setDeleteId(null);
     }
   };
   

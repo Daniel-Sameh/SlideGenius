@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import PresentationEdit from "./pages/PresentationEdit";
+import PresentationView from "./pages/PresentationView";
 import { SlideGenerator } from "@/components/SlideGenerator";
 import NotFound from "./pages/NotFound";
 
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/create" element={<SlideGenerator />} />
               <Route path="/edit/:id" element={<PresentationEdit />} />
+              <Route path="/presentation/:id" element={<PresentationView />} />
             </Route>
             
             {/* Catch-all route */}

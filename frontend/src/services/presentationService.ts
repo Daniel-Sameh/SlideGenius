@@ -1,3 +1,5 @@
+const API_BASE_URL = 'https://slidegenius-production.up.railway.app/api';
+
 export interface Presentation {
   id: string;
   title: string;
@@ -9,70 +11,88 @@ export interface Presentation {
   userId: string;
 }
 
-// Mock data storage (would be replaced by API calls in production)
-class PresentationStorage {
-  private static instance: PresentationStorage;
-  private presentations: Presentation[] = [];
+export interface GenerateSlideRequest {
+  markdown_input: string;
+  title: string;
+  theme?: string;
+}
+
+class PresentationService {
+  private static instance: PresentationService;
+  private token: string | null = null;
 
   private constructor() {
-    // Load any saved presentations from localStorage
-    const saved = localStorage.getItem('presentations');
-    if (saved) {
-      this.presentations = JSON.parse(saved);
+    // Get token from localStorage if it exists
+    this.token = localStorage.getItem('token');
+  }
+
+  public static getInstance(): PresentationService {
+    if (!PresentationService.instance) {
+      PresentationService.instance = new PresentationService();
     }
+    return PresentationService.instance;
   }
 
-  public static getInstance(): PresentationStorage {
-    if (!PresentationStorage.instance) {
-      PresentationStorage.instance = new PresentationStorage();
+  private getHeaders() {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
-    return PresentationStorage.instance;
+    return headers;
   }
 
-  public getAllByUser(userId: string): Presentation[] {
-    return this.presentations.filter(p => p.userId === userId);
+  public async getAllByUser(): Promise<Presentation[]> {
+    const response = await fetch(`${API_BASE_URL}/presentations/`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch presentations');
+    return response.json();
   }
 
-  public getById(id: string): Presentation | undefined {
-    return this.presentations.find(p => p.id === id);
+  public async getById(id: string): Promise<Presentation> {
+    const response = await fetch(`${API_BASE_URL}/presentations/${id}`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch presentation');
+    return response.json();
   }
 
-  public save(presentation: Presentation): Presentation {
-    const existingIndex = this.presentations.findIndex(p => p.id === presentation.id);
-    
-    if (existingIndex >= 0) {
-      // Update existing presentation
-      this.presentations[existingIndex] = {
-        ...presentation,
-        updatedAt: new Date().toISOString()
-      };
-    } else {
-      // Create new presentation
-      this.presentations.push({
-        ...presentation,
-        id: presentation.id || `pres_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    }
-    
-    // Persist to localStorage
-    localStorage.setItem('presentations', JSON.stringify(this.presentations));
-    
-    return this.getById(presentation.id) as Presentation;
+  public async generateSlides(request: GenerateSlideRequest): Promise<Presentation> {
+    const headers = this.getHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    const response = await fetch(`${API_BASE_URL}/presentations/generate`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        markdown_input: request.markdown_input,
+        title: request.title,
+        theme: request.theme || 'default'
+      }),
+    });
+    if (!response.ok) throw new Error('Failed to generate presentation');
+    return response.json();
   }
 
-  public delete(id: string): boolean {
-    const initialLength = this.presentations.length;
-    this.presentations = this.presentations.filter(p => p.id !== id);
-    
-    if (initialLength !== this.presentations.length) {
-      localStorage.setItem('presentations', JSON.stringify(this.presentations));
-      return true;
-    }
-    
-    return false;
+  public async deletePresentation(id: string): Promise<boolean> {
+    const response = await fetch(`${API_BASE_URL}/presentations/${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return response.ok;
+  }
+
+  public setToken(token: string) {
+    this.token = token;
+    localStorage.setItem('token', token);
+  }
+
+  public clearToken() {
+    this.token = null;
+    localStorage.removeItem('token');
   }
 }
 
-export const presentationService = PresentationStorage.getInstance();
+export default PresentationService.getInstance();

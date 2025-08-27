@@ -34,10 +34,8 @@ class Settings:
     use_mock_llm: bool = False
 
     # CORS
-    allowed_origins_str = os.getenv("ALLOWED_ORIGINS", '["http://localhost:3000"]')
-    try:
-        allowed_origins: List[str] = json.loads(allowed_origins_str)
-    except:
-        allowed_origins: List[str] = ["http://localhost:3000"]
+    allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8080")
+    # Parse the comma-separated string into a list
+    allowed_origins: List[str] = allowed_origins_str.split(',')
 
 settings = Settings()

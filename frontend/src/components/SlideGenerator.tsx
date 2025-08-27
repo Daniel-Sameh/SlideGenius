@@ -8,7 +8,7 @@ import { SlidePreview } from "@/components/SlidePreview";
 import { FullscreenPresentation } from "@/components/FullscreenPresentation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { presentationService, Presentation } from "@/services/presentationService";
+import presentationService, { Presentation, GenerateSlideRequest } from "@/services/presentationService";
 import { 
   Sparkles, 
   ArrowLeft, 
@@ -45,24 +45,37 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
 
   // Load presentation if in edit mode
   useEffect(() => {
-    if (isEditMode && id && user) {
-      const presentation = presentationService.getById(id);
-      if (presentation && presentation.userId === user.id) {
-        setTitle(presentation.title);
-        setDescription(presentation.description || "");
-        setMarkdown(presentation.markdown);
-        if (presentation.html) {
-          setGeneratedHtml(presentation.html);
+    const loadPresentation = async () => {
+      if (isEditMode && id && user) {
+        try {
+          const presentation = await presentationService.getById(id);
+          if (presentation) {
+            setTitle(presentation.title);
+            setDescription(presentation.description || "");
+            setMarkdown(presentation.markdown);
+            if (presentation.html) {
+              setGeneratedHtml(presentation.html);
+            }
+          } else {
+            toast({
+              title: "Presentation not found",
+              description: "The requested presentation could not be loaded.",
+              variant: "destructive",
+            });
+            navigate("/dashboard");
+          }
+        } catch (error) {
+          toast({
+            title: "Error loading presentation",
+            description: "Could not load the presentation. Please try again.",
+            variant: "destructive",
+          });
+          navigate("/dashboard");
         }
-      } else {
-        toast({
-          title: "Presentation not found",
-          description: "The requested presentation could not be loaded.",
-          variant: "destructive",
-        });
-        navigate("/dashboard");
       }
-    }
+    };
+    
+    loadPresentation();
   }, [isEditMode, id, user, navigate, toast]);
 
   const generateSlides = async () => {
@@ -78,41 +91,14 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
     setIsGenerating(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Mock generated HTML with Reveal.js
-      const mockHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-    <link rel="stylesheet" href="https://unpkg.com/reveal.js@4/dist/reveal.css">
-    <link rel="stylesheet" href="https://unpkg.com/reveal.js@4/dist/theme/moon.css">
-    <style>
-      .reveal .slides section { text-align: left; }
-      .reveal h1, .reveal h2, .reveal h3 { text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="reveal">
-        <div class="slides">
-            ${markdown.split('---').map(slide => 
-              `<section data-markdown><textarea data-template>${slide.trim()}</textarea></section>`
-            ).join('')}
-        </div>
-    </div>
-    <script src="https://unpkg.com/reveal.js@4/dist/reveal.js"></script>
-    <script src="https://unpkg.com/reveal.js@4/plugin/markdown/markdown.js"></script>
-    <script>
-        Reveal.initialize({
-            plugins: [ RevealMarkdown ],
-            hash: true,
-            transition: 'slide'
-        });
-    </script>
-</body>
-</html>`;
-      
-      setGeneratedHtml(mockHtml);
+      const currentTitle = title.trim() || 'Untitled Presentation';
+      const response = await presentationService.generateSlides({
+        markdown_input: markdown,
+        title: currentTitle,
+        theme: 'default'
+      });
+
+      setGeneratedHtml(response.html || '');
       toast({
         title: "Slides generated successfully!",
         description: "Your presentation is ready. Use arrow keys to navigate.",
@@ -164,16 +150,11 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
     setIsSaving(true);
 
     try {
-      const presentationData: Partial<Presentation> = {
-        id: isEditMode && id ? id : `pres_${Math.random().toString(36).substr(2, 9)}`,
+      const response = await presentationService.generateSlides({
+        markdown_input: markdown,
         title: title.trim(),
-        description: description.trim() || undefined,
-        markdown,
-        html: generatedHtml,
-        userId: user.id
-      };
-
-      presentationService.save(presentationData as Presentation);
+        theme: 'moon'
+      });
       
       setIsSaveDialogOpen(false);
       toast({
