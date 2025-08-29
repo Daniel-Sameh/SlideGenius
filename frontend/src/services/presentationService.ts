@@ -1,3 +1,5 @@
+'use client';
+
 const API_BASE_URL = 'https://slidegenius-production.up.railway.app/api';
 
 export interface Presentation {
@@ -23,7 +25,9 @@ class PresentationService {
 
   private constructor() {
     // Get token from localStorage if it exists
-    this.token = localStorage.getItem('token');
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('token');
+    }
   }
 
   public static getInstance(): PresentationService {
@@ -86,12 +90,16 @@ class PresentationService {
 
   public setToken(token: string) {
     this.token = token;
-    localStorage.setItem('token', token);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', token);
+    }
   }
 
   public clearToken() {
     this.token = null;
-    localStorage.removeItem('token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+    }
   }
 }
 

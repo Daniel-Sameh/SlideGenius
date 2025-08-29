@@ -1,6 +1,7 @@
+'use client';
+
 import { Button } from "@/components/ui/button";
 import { ArrowDown, Sparkles, Zap, Presentation } from "lucide-react";
-import heroImage from "@/assets/hero-bg.jpg";
 
 interface HeroSectionProps {
   onGetStarted: () => void;

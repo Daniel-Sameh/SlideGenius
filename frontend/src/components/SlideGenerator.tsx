@@ -1,88 +1,54 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { MarkdownEditor } from "@/components/MarkdownEditor";
-import { SlidePreview } from "@/components/SlidePreview";
-import { FullscreenPresentation } from "@/components/FullscreenPresentation";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import presentationService, { Presentation, GenerateSlideRequest } from "@/services/presentationService";
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/auth-context';
+import { useRouter } from 'next/navigation';
+import presentationService from '@/services/presentation-service';
+import FullscreenPresentation from './FullscreenPresentation';
 import { 
-  Sparkles, 
   ArrowLeft, 
-  Save,
-  Loader2
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Loader2, 
+  Save, 
+  Eye, 
+  Download,
+  Sparkles 
+} from 'lucide-react';
 
 interface SlideGeneratorProps {
   onBack?: () => void;
   isEditMode?: boolean;
+  existingPresentation?: any;
+  onSave?: (data: any) => void;
 }
 
-export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorProps) => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [markdown, setMarkdown] = useState("");
-  const [generatedHtml, setGeneratedHtml] = useState<string>();
+export function SlideGenerator({ 
+  onBack, 
+  isEditMode = false, 
+  existingPresentation,
+  onSave 
+}: SlideGeneratorProps) {
+  const [markdown, setMarkdown] = useState(existingPresentation?.markdown || '');
+  const [title, setTitle] = useState(existingPresentation?.title || '');
+  const [theme, setTheme] = useState(existingPresentation?.theme || 'default');
+  const [generatedHtml, setGeneratedHtml] = useState(existingPresentation?.html || '');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showFullscreen, setShowFullscreen] = useState(false);
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  
   const { toast } = useToast();
+  const { user } = useAuth();
+  const router = useRouter();
 
-  // Load presentation if in edit mode
-  useEffect(() => {
-    const loadPresentation = async () => {
-      if (isEditMode && id && user) {
-        try {
-          const presentation = await presentationService.getById(id);
-          if (presentation) {
-            setTitle(presentation.title);
-            setDescription(presentation.description || "");
-            setMarkdown(presentation.markdown);
-            if (presentation.html) {
-              setGeneratedHtml(presentation.html);
-            }
-          } else {
-            toast({
-              title: "Presentation not found",
-              description: "The requested presentation could not be loaded.",
-              variant: "destructive",
-            });
-            navigate("/dashboard");
-          }
-        } catch (error) {
-          toast({
-            title: "Error loading presentation",
-            description: "Could not load the presentation. Please try again.",
-            variant: "destructive",
-          });
-          navigate("/dashboard");
-        }
-      }
-    };
-    
-    loadPresentation();
-  }, [isEditMode, id, user, navigate, toast]);
-
-  const generateSlides = async () => {
+  const generatePresentation = async () => {
     if (!markdown.trim()) {
       toast({
-        title: "Please add some content",
-        description: "Add your markdown content before generating slides.",
+        title: "Content Required",
+        description: "Please add markdown content before generating",
         variant: "destructive",
       });
       return;
@@ -91,22 +57,22 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
     setIsGenerating(true);
     
     try {
-      const currentTitle = title.trim() || 'Untitled Presentation';
-      const response = await presentationService.generateSlides({
+      const result = await presentationService.generateSlides({
         markdown_input: markdown,
-        title: currentTitle,
-        theme: 'default'
+        title: title || 'My Presentation',
+        theme: theme,
       });
-
-      setGeneratedHtml(response.html || '');
+      
+      setGeneratedHtml(result.html || '');
+      
       toast({
-        title: "Slides generated successfully!",
-        description: "Your presentation is ready. Use arrow keys to navigate.",
+        title: "Success!",
+        description: isEditMode ? "Presentation updated - save to persist changes" : "Presentation created successfully",
       });
     } catch (error) {
       toast({
-        title: "Error generating slides",
-        description: "Please try again later.",
+        title: "Generation Error",
+        description: "Could not generate presentation. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -114,59 +80,58 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
     }
   };
 
-  const openSaveDialog = () => {
+  const savePresentation = async () => {
     if (!user) {
       toast({
-        title: "Please log in",
-        description: "You need to be logged in to save presentations.",
+        title: "Sign In Required",
+        description: "Please log in to save presentations",
         variant: "destructive",
       });
-      navigate("/login");
-      return;
-    }
-    setIsSaveDialogOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (!title.trim()) {
-      toast({
-        title: "Title required",
-        description: "Please provide a title for your presentation.",
-        variant: "destructive",
-      });
+      router.push('/login');
       return;
     }
 
-    if (!user) {
+    if (!generatedHtml) {
       toast({
-        title: "Authentication error",
-        description: "You need to be logged in to save presentations.",
+        title: "Nothing to Save",
+        description: "Generate a presentation first",
         variant: "destructive",
       });
-      navigate("/login");
       return;
     }
 
     setIsSaving(true);
-
+    
     try {
-      const response = await presentationService.generateSlides({
-        markdown_input: markdown,
-        title: title.trim(),
-        theme: 'moon'
-      });
-      
-      setIsSaveDialogOpen(false);
-      toast({
-        title: "Presentation saved",
-        description: "Your presentation has been successfully saved.",
-      });
-      
-      navigate("/dashboard");
+      if (isEditMode && existingPresentation?.id) {
+        await presentationService.updatePresentation(existingPresentation.id, {
+          title: title || 'My Presentation',
+          markdown,
+          html: generatedHtml,
+          theme,
+        });
+        
+        toast({
+          title: "Updated!",
+          description: "Presentation changes saved successfully",
+        });
+        
+        if (onSave) {
+          onSave({ title, markdown, html: generatedHtml, theme });
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        toast({
+          title: "Saved!",
+          description: "Check your dashboard for the saved presentation",
+        });
+        router.push('/dashboard');
+      }
     } catch (error) {
       toast({
-        title: "Error saving presentation",
-        description: "An error occurred while saving your presentation.",
+        title: "Save Error",
+        description: "Could not save presentation. Please retry.",
         variant: "destructive",
       });
     } finally {
@@ -174,139 +139,182 @@ export const SlideGenerator = ({ onBack, isEditMode = false }: SlideGeneratorPro
     }
   };
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      navigate("/dashboard");
+  const downloadPresentation = () => {
+    if (!generatedHtml) {
+      toast({
+        title: "No Content",
+        description: "Generate a presentation before downloading",
+        variant: "destructive",
+      });
+      return;
     }
+
+    const htmlBlob = new Blob([generatedHtml], { type: 'text/html' });
+    const downloadUrl = URL.createObjectURL(htmlBlob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = downloadUrl;
+    downloadLink.download = `${title || 'my-presentation'}.html`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(downloadUrl);
+    
+    toast({
+      title: "Downloaded!",
+      description: "Presentation saved as HTML file",
+    });
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container flex items-center justify-between py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={handleBack}>
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
+      <div className="container max-w-6xl py-8">
+        <div className="flex items-center justify-between mb-8">
+          {onBack && (
+            <Button type="button" variant="ghost" onClick={onBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
-            <div>
-              <h1 className="text-2xl font-bold">SlideGenius</h1>
-              <p className="text-sm text-muted-foreground">AI-Powered Slide Generator</p>
-            </div>
-          </div>
+          )}
+          
+          <h1 className="text-3xl font-bold">
+            {isEditMode ? 'Edit Presentation' : 'Create Presentation'}
+          </h1>
           
           <div className="flex gap-2">
             {generatedHtml && (
-              <Button 
-                variant="outline" 
-                onClick={openSaveDialog}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {isEditMode ? "Update" : "Save"}
-              </Button>
+              <>
+                <Button type="button" variant="outline" onClick={() => setShowPreview(true)}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview
+                </Button>
+                <Button type="button" variant="outline" onClick={downloadPresentation}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </>
             )}
             
-            <Button 
-              onClick={generateSlides} 
-              disabled={isGenerating || !markdown.trim()}
-              className="bg-gradient-primary hover:shadow-glow transition-all duration-300"
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              {isGenerating ? "Generating..." : "Generate Slides"}
-            </Button>
+            {isEditMode && generatedHtml && user && (
+              <Button 
+                type="button"
+                onClick={savePresentation}
+                disabled={isSaving}
+                className="bg-gradient-primary hover:shadow-glow"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container py-8">
-        <div className="grid lg:grid-cols-2 gap-8 h-[calc(100vh-10rem)]">
-          {/* Editor */}
-          <div className="slide-enter">
-            <MarkdownEditor
-              value={markdown}
-              onChange={setMarkdown}
-            />
-          </div>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Content Input</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="presentation-title" className="block text-sm font-medium mb-2">
+                  Presentation Title
+                </label>
+                <Input
+                  id="presentation-title"
+                  type="text"
+                  placeholder="Enter your presentation title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="presentation-theme" className="block text-sm font-medium mb-2">
+                  Visual Theme
+                </label>
+                <select
+                  id="presentation-theme"
+                  className="w-full p-2 border border-input bg-background rounded-md"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                >
+                  <option value="default">Default Theme</option>
+                  <option value="dark">Dark Theme</option>
+                  <option value="blue">Blue Theme</option>
+                  <option value="minimal">Minimal Theme</option>
+                </select>
+              </div>
+              
+              <div>
+                <label htmlFor="markdown-content" className="block text-sm font-medium mb-2">
+                  Markdown Content
+                </label>
+                <Textarea
+                  id="markdown-content"
+                  placeholder="Write your presentation content using Markdown syntax..."
+                  className="min-h-[400px] font-mono"
+                  value={markdown}
+                  onChange={(e) => setMarkdown(e.target.value)}
+                />
+              </div>
+              
+              <Button 
+                type="button"
+                onClick={generatePresentation}
+                disabled={isGenerating}
+                className="w-full bg-gradient-primary hover:shadow-glow"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Presentation
+                  </>
+                )}
+              </Button>
+            </div>
+          </Card>
           
-          {/* Preview */}
-          <div className="slide-enter delay-100">
-            <SlidePreview
-              htmlContent={generatedHtml}
-              isGenerating={isGenerating}
-              onFullscreen={generatedHtml ? () => setShowFullscreen(true) : undefined}
-            />
-          </div>
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Live Preview</h2>
+            
+            {generatedHtml ? (
+              <div className="border rounded-lg overflow-hidden">
+                <iframe
+                  srcDoc={generatedHtml}
+                  className="w-full h-[500px]"
+                  title="Generated Presentation Preview"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[500px] border-2 border-dashed rounded-lg">
+                <p className="text-muted-foreground">
+                  Your generated slides will appear here
+                </p>
+              </div>
+            )}
+          </Card>
         </div>
-      </main>
-
-      {/* Fullscreen Presentation */}
-      {showFullscreen && generatedHtml && (
-        <FullscreenPresentation
-          htmlContent={generatedHtml}
-          onClose={() => setShowFullscreen(false)}
+      </div>
+      
+      {showPreview && generatedHtml && (
+        <FullscreenPresentation 
+          htmlContent={generatedHtml} 
+          onClose={() => setShowPreview(false)} 
         />
       )}
-
-      {/* Save Dialog */}
-      <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? "Update Presentation" : "Save Presentation"}</DialogTitle>
-            <DialogDescription>
-              {isEditMode 
-                ? "Update the details of your presentation." 
-                : "Enter the details to save your presentation."}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="title" className="text-sm font-medium">Title</label>
-              <Input
-                id="title"
-                placeholder="My Awesome Presentation"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium">Description (optional)</label>
-              <Textarea
-                id="description"
-                placeholder="A brief description of your presentation"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isEditMode ? "Updating..." : "Saving..."}
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {isEditMode ? "Update" : "Save"}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
-};
+}

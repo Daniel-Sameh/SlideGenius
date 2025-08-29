@@ -42,7 +42,7 @@ class ThemeSuggestion(BaseModel):
 class PresentationBase(BaseModel):
     title: Optional[str] = "Untitled Presentation"
     markdown_input: str
-    theme: Optional[str] = None
+    theme: Optional[str] = "default"
 
 class PresentationCreate(PresentationBase):
     """Schema for creating a new presentation"""
@@ -62,7 +62,6 @@ class PresentationResponse(BaseModel):
     markdown_content: str
     theme: str
     html_content: str
-    description: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

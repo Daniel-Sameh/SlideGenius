@@ -94,6 +94,7 @@ async def register(user_data: UserRegistration):
         try:
             # Fix: Properly structure the sign_up request
             auth_response = supabase.auth.sign_up({
+                "full_name": user_data.name,
                 "email": user_data.email,
                 "password": user_data.password,
                 "options": {

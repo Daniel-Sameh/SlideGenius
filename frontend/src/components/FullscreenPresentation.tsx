@@ -1,147 +1,137 @@
-import { useEffect, useRef, useState } from "react";
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface FullscreenPresentationProps {
   htmlContent: string;
   onClose: () => void;
 }
 
-export const FullscreenPresentation = ({ htmlContent, onClose }: FullscreenPresentationProps) => {
+export default function FullscreenPresentation({ htmlContent, onClose }: FullscreenPresentationProps) {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slides, setSlides] = useState<string[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-        return;
-      }
+    // Parse slides from HTML content
+    const slideElements = htmlContent.split('<section').filter(section => section.trim().length > 0);
+    const parsedSlides = slideElements.map((slide, index) => {
+      if (index === 0) return slide;
+      return '<section' + slide;
+    });
+    setSlides(parsedSlides);
+  }, [htmlContent]);
 
-      if (!iframeRef.current?.contentWindow) return;
+  useEffect(() => {
+    if (iframeRef.current) {
+      const iframe = iframeRef.current;
+      iframe.srcdoc = slides[currentSlide] || htmlContent;
+    }
+  }, [currentSlide, htmlContent, slides]);
 
-      // Forward arrow keys to Reveal.js
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault();
-        try {
-          iframeRef.current.contentWindow.postMessage({
-            type: 'navigate',
-            direction: event.key === 'ArrowLeft' ? 'prev' : 'next'
-          }, '*');
-        } catch (error) {
-          console.log('Navigation message sent');
-        }
-      }
-    };
+  const nextSlide = () => {
+    if (currentSlide < slides.length - 1) {
+      setCurrentSlide(currentSlide + 1);
+    }
+  };
 
+  const prevSlide = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide(currentSlide - 1);
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      nextSlide();
+    } else if (e.key === 'ArrowLeft') {
+      prevSlide();
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  const handleIframeLoad = () => {
-    setIsLoaded(true);
-    toast({
-      title: "Presentation ready!",
-      description: "Use arrow keys or buttons to navigate slides. Press ESC to exit fullscreen.",
-    });
-
-    // Inject navigation script into iframe
-    if (iframeRef.current?.contentWindow) {
-      const script = `
-        window.addEventListener('message', function(event) {
-          if (event.data.type === 'navigate' && window.Reveal) {
-            if (event.data.direction === 'next') {
-              Reveal.next();
-            } else if (event.data.direction === 'prev') {
-              Reveal.prev();
-            }
-          }
-        });
-      `;
-      
-      try {
-        const doc = iframeRef.current.contentDocument;
-        if (doc) {
-          const scriptElement = doc.createElement('script');
-          scriptElement.textContent = script;
-          doc.head.appendChild(scriptElement);
-        }
-      } catch (error) {
-        console.log('Script injection attempted');
-      }
-    }
-  };
-
-  const navigate = (direction: 'prev' | 'next') => {
-    if (!iframeRef.current?.contentWindow) return;
-    
-    try {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'navigate',
-        direction
-      }, '*');
-    } catch (error) {
-      console.log('Navigation attempted');
-    }
-  };
+  }, [currentSlide, slides.length]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      {/* Top Controls */}
-      <div className="flex items-center justify-between p-4 bg-background/95 backdrop-blur-sm border-b border-border/50">
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+      {/* Header */}
+      <div className="flex justify-between items-center p-4 bg-black/50 backdrop-blur-sm">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold">SlideGenius Presentation</h2>
-          {isLoaded && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('prev')}
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('next')}
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+          <span className="text-white text-sm">
+            {currentSlide + 1} / {slides.length}
+          </span>
         </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Press ESC to exit</span>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="text-white hover:bg-white/20"
+          aria-label="Close presentation"
+        >
+          <X className="w-5 h-5" />
+        </Button>
       </div>
 
-      {/* Presentation */}
-      <div className="flex-1 relative">
+      {/* Slide Content */}
+      <div className="flex-1 flex items-center justify-center p-8">
         <iframe
           ref={iframeRef}
-          srcDoc={htmlContent}
-          className="w-full h-full border-0"
+          className="w-full h-full bg-white rounded-lg shadow-2xl"
+          sandbox="allow-scripts allow-same-origin"
           title="Fullscreen Presentation"
-          onLoad={handleIframeLoad}
         />
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between items-center p-4 bg-black/50 backdrop-blur-sm">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={prevSlide}
+          disabled={currentSlide === 0}
+          className="text-white hover:bg-white/20 disabled:opacity-50"
+          aria-label="Previous slide"
+        >
+          <ChevronLeft className="w-5 h-5 mr-1" />
+          Previous
+        </Button>
         
-        {!isLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary mx-auto"></div>
-              <p className="text-lg font-medium">Loading presentation...</p>
-            </div>
-          </div>
-        )}
+        <div className="flex gap-2" role="group" aria-label="Slide navigation">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => setCurrentSlide(index)}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                index === currentSlide ? 'bg-white' : 'bg-white/30'
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+              aria-current={index === currentSlide ? "true" : "false"}
+            />
+          ))}
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={nextSlide}
+          disabled={currentSlide === slides.length - 1}
+          className="text-white hover:bg-white/20 disabled:opacity-50"
+          aria-label="Next slide"
+        >
+          Next
+          <ChevronRight className="w-5 h-5 ml-1" />
+        </Button>
       </div>
     </div>
   );
-};
+}
