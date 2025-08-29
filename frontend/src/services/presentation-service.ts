@@ -1,9 +1,9 @@
 import { getCookie } from 'cookies-next';
 
-// Use dynamic API URL for development/production
+// Use local proxy in development, and the Vercel env variable in production
 const API_BASE_URL = process.env.NODE_ENV === 'development' 
   ? '/api'
-  : 'https://slidegenius-production.up.railway.app/api';
+  : `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
 export interface Presentation {
   id: string;

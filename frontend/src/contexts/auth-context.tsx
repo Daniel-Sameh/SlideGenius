@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import presentationService from "@/services/presentation-service";
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'https://slidegenius-production.up.railway.app/api';
+// Use same API pattern as presentation service
+const API_BASE_URL = process.env.NODE_ENV === 'development' 
+  ? '/api'
+  : `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
 export type UserType = {
   id: string;
