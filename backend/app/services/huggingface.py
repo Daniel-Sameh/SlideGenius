@@ -279,66 +279,6 @@ Consider the topic, tone, and audience. Respond with ONLY ONE theme name from th
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="{REVEAL_CSS_CDN}">
   <link rel="stylesheet" href="{REVEAL_THEME_BASE}/{theme}.min.css" id="theme">
-  <style>
-    /* Base styles */
-    .reveal .slides section {{
-      text-align: left;
-      height: 100%;
-      overflow: hidden;
-      padding: 20px;
-    }}
-    
-    /* Fix headings */
-    .reveal h1, .reveal h2, .reveal h3 {{
-      text-wrap: balance;
-      margin-bottom: 0.5em;
-    }}
-    
-    .reveal h1, .reveal h2 {{
-      text-align: center;
-    }}
-    
-    /* Fix paragraph spacing */
-    .reveal p {{
-      text-wrap: pretty;
-      margin-bottom: 0.7em;
-    }}
-    
-    /* Fix bullet points - prevent duplication */
-    .reveal ul {{
-      display: block;
-      margin-left: 1em;
-    }}
-    
-    .reveal li {{
-      margin-bottom: 0.5em;
-      list-style-type: disc;
-    }}
-    
-    /* Remove custom bullets if added by AI */
-    .reveal li:before {{
-      content: none !important;
-    }}
-    
-    /* Content containers to prevent overflow */
-    .reveal .slide-content {{
-      max-height: 80vh;
-      overflow-y: auto;
-      padding-right: 10px;
-    }}
-    
-    /* Table styling */
-    .reveal table {{
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1em 0;
-    }}
-    
-    .reveal th, .reveal td {{
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 0.5em;
-    }}
-  </style>
 </head>
 <body>
   <div class="reveal">
@@ -364,29 +304,28 @@ Consider the topic, tone, and audience. Respond with ONLY ONE theme name from th
 </body>
 </html>"""
         
-        prompt = f"""You are a presentation HTML expert. Fix and enhance the following HTML presentation code.
+        prompt = f"""Create a beautiful, creative HTML presentation using reveal.js. Use the theme "{theme}" and make it visually stunning.
 
-CRITICAL REQUIREMENTS:
-1. FIX OVERFLOW: Ensure content fits within slides with no vertical overflow
-2. USE PROPER HTML: Convert any plain text tables to proper HTML tables
-3. MAINTAIN READABILITY: Don't reduce font sizes too much but if needed reduce the font size to make the content fit the slide or split it into two slides
-4. KEEP STYLING CLEAN: Use professional styling yet creative and attractive styling, add icons and different colors if needed, different shapes if needed too, don't use these too much.
-5. ENSURE USING VALID STYLINGS AND ELEMENTS
-6- MAKE THE CONTENT SLIDES TAKE THE WHOLE WINDOW WIDTH PLEASE TOO.
+REQUIREMENTS:
+1. Use creative colors, gradients, and styling that match the "{theme}" theme
+2. Add icons, animations, and visual elements to make it engaging
+3. Ensure content fits properly in slides
+4. Use the full window width and height
+5. Make each slide unique and visually appealing
+6. Add custom CSS that complements the "{theme}" theme
 
-Here is the HTML:
+Base HTML to enhance:
 {html_template}
 
-IMPORTANT: Your response must contain ONLY valid HTML code. No explanations, markdown formatting, or code blocks. Just pure HTML.
-"""
+Return ONLY the complete HTML code with creative styling."""
+        
         result = self.generate_text(prompt)
-        # Clean the response to remove any explanations or markdown
+        
+        # Clean the response
         if "<!doctype html>" in result.lower():
-            # Extract just the HTML part if there's explanatory text
             start = result.lower().find("<!doctype html>")
             result = result[start:]
         
-        # If the AI still added explanation at the end, truncate at </html>
         if "</html>" in result:
             end = result.find("</html>") + 7
             result = result[:end]

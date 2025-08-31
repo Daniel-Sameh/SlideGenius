@@ -1,68 +1,115 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from ..db import get_db_session
-from ..auth import get_current_user
+from ..db import get_db_session, SessionLocal # Import SessionLocal
+from ..api.auth import get_current_user
 from ..models import Presentation
 from ..schemas import PresentationCreate, PresentationResponse
 from ..llm.graph import build_pipeline
+import uuid
 
 router = APIRouter(prefix="/presentations", tags=["Presentations"])
 
-@router.post("/generate", response_model=PresentationResponse)
+def run_generation_pipeline(presentation_id: str, user_id: str, markdown_input: str, title: str):
+    """
+    This function runs in the background and manages its own database session.
+    """
+    db = SessionLocal() # Create a new, independent session
+    try:
+        pipeline = build_pipeline(db, user_id, title)
+        result = pipeline.invoke({"markdown_input": markdown_input, "title": title})
+
+        presentation = db.query(Presentation).filter(Presentation.id == presentation_id).first()
+        if presentation:
+            # Update with the correct field names from pipeline result
+            presentation.markdown_content = result.get('improved_markdown', result.get('markdown_input', ''))
+            presentation.html_content = result.get('html_content', '')
+            presentation.theme = result.get('theme', 'black')
+            presentation.status = "complete"
+            db.commit()
+    except Exception as e:
+        print(f"Background task failed: {e}")
+        presentation = db.query(Presentation).filter(Presentation.id == presentation_id).first()
+        if presentation:
+            presentation.status = "failed"
+            db.commit()
+    finally:
+        db.close() # Close the independent session
+
+@router.post("/generate", status_code=status.HTTP_202_ACCEPTED)
 async def generate_presentation(
     data: PresentationCreate,
+    background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db_session)
 ):
-    """Generate a presentation from markdown content"""
+    """Initiate a presentation generation job."""
+    # Create a presentation record with a 'pending' status
+    new_presentation = Presentation(
+        id=uuid.uuid4(),
+        user_id=current_user["id"],
+        title=data.title or "Untitled",
+        theme=data.theme or "default",
+        status="pending",
+        markdown_content=data.markdown_input, # Save markdown immediately
+        html_content="" # Start with empty html
+    )
+    db.add(new_presentation)
     try:
-        # Debug output
-        print(f"In generate_presentation. DB session type: {type(db)}")
-        print(f"DB session class: {db.__class__.__name__}")
-        
-        # Ensure we have a valid session before building the pipeline
-        if hasattr(db, 'add') and callable(db.add):
-            pipeline = build_pipeline(db, current_user["id"], data.title or "Untitled")
-            result = await pipeline.ainvoke({"markdown_input": data.markdown_input, "title":data.title or "Untitled"})
-            
-            # Get the presentation
-            presentation = db.query(Presentation).filter(
-                Presentation.user_id == current_user["id"]
-            ).order_by(Presentation.created_at.desc()).first()
-            
-            if not presentation:
-                raise HTTPException(status_code=500, detail="Failed to generate presentation")
-            
-            return presentation
-        else:
-            raise ValueError(f"Invalid database session: {type(db)}. Missing 'add' method.")
-    except Exception as e:
-        print(f"Error in generate_presentation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
+        db.commit()
+        db.refresh(new_presentation)
+    except Exception:
+        db.rollback()
+        raise
 
-@router.get("/", response_model=List[PresentationResponse])
-async def list_presentations(
-    current_user = Depends(get_current_user),  # Renamed from current_user_id
+    # Add the long-running task to the background WITHOUT the db session
+    background_tasks.add_task(
+        run_generation_pipeline,
+        presentation_id=str(new_presentation.id),
+        user_id=current_user["id"],
+        markdown_input=data.markdown_input,
+        title=data.title,
+    )
+
+    return {"presentation_id": str(new_presentation.id), "status": "pending"}
+
+
+@router.get("/{presentation_id}/status", response_model=PresentationResponse)
+async def get_presentation_status(
+    presentation_id: str,
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db_session)
 ):
-    presentations = db.query(Presentation).filter(
-        Presentation.user_id == current_user["id"]  # Extract just the ID
-    ).order_by(Presentation.created_at.desc()).all()
+    """Check the status of a presentation generation job."""
+    presentation = db.query(Presentation).filter(
+        Presentation.id == presentation_id,
+        Presentation.user_id == current_user["id"]
+    ).first()
 
-    return [
-        PresentationResponse(
-            id=str(p.id),
-            user_id=p.user_id,
-            title=p.title,
-            markdown_content=p.markdown_content,
-            theme=p.theme,
-            html_content=p.html_content,
-            created_at=p.created_at,
-            updated_at=p.updated_at
-        )
-        for p in presentations
-    ]
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+
+    return presentation
+
+@router.get("", response_model=List[PresentationResponse])
+async def list_presentations(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db_session)
+):
+    user_id = current_user["id"]
+    print(f"Fetching presentations for user_id: {user_id}")
+    try:
+        presentations = db.query(Presentation).filter(
+            Presentation.user_id == uuid.UUID(user_id)
+        ).order_by(Presentation.created_at.desc()).all()
+        print(f"Found {len(presentations)} presentations for user {user_id}")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    # This part of your code had a bug, it was not returning all fields.
+    # Let's fix it to use the PresentationResponse schema correctly.
+    return presentations
+
 
 @router.get("/{presentation_id}", response_model=PresentationResponse)
 async def get_presentation(
@@ -70,10 +117,13 @@ async def get_presentation(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db_session)
 ):
-    presentation = db.query(Presentation).filter(
-        Presentation.id == presentation_id,
-        Presentation.user_id == current_user["id"] 
-    ).first()
+    try:
+        presentation = db.query(Presentation).filter(
+            Presentation.id == uuid.UUID(presentation_id),
+            Presentation.user_id == uuid.UUID(current_user["id"]) 
+        ).first()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid presentation ID format")
 
     if not presentation:
         raise HTTPException(
@@ -81,13 +131,10 @@ async def get_presentation(
             detail="Presentation not found"
         )
 
-    return PresentationResponse(
-        id=str(presentation.id),
-        title=presentation.title,
-        theme=presentation.theme,
-        html_content=presentation.html_content,
-        created_at=presentation.created_at
-    )
+    # This was the bug. It was not returning all fields.
+    # By returning the presentation object directly, FastAPI will correctly
+    # map it to the PresentationResponse model.
+    return presentation
 
 @router.delete("/{presentation_id}")
 async def delete_presentation(
@@ -106,7 +153,11 @@ async def delete_presentation(
             detail="Presentation not found"
         )
 
-    db.delete(presentation)
-    db.commit()
+    try:
+        db.delete(presentation)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete presentation")
     
     return {"message": "Presentation deleted successfully"}

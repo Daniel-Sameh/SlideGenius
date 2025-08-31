@@ -26,7 +26,7 @@ export default function EditPage() {
       if (id) {
         try {
           const presentationData = await presentationService.getById(id);
-          if (!presentationData || presentationData.userId !== user.id) {
+          if (!presentationData || (presentationData.user_id || presentationData.userId) !== user.id) {
             toast({
               title: "Access denied",
               description: "You do not have permission to edit this presentation",

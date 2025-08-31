@@ -1,6 +1,6 @@
 # backend/app/models.py
 import uuid
-from sqlalchemy import Column, String, Text, DateTime, func
+from sqlalchemy import Column, String, Text, DateTime, func, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.schema import ForeignKey
 from .db import Base
@@ -24,5 +24,10 @@ class Presentation(Base):
     markdown_content = Column(Text, nullable=False)
     html_content = Column(Text, nullable=False)
     theme = Column(Text, nullable=False, default="default")
+    status = Column(String, nullable=True, default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('ix_presentations_user_id', 'user_id'),
+    )

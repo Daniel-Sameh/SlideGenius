@@ -17,10 +17,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/token
 
 # Initialize Supabase client conditionally
 supabase = None
-if settings.supabase_url and settings.supabase_key:
+if settings.supabase_url and settings.supabase_service_key:
     try:
         from supabase import create_client, Client
-        supabase: Optional[Client] = create_client(settings.supabase_url, settings.supabase_key)
+        supabase: Optional[Client] = create_client(settings.supabase_url, settings.supabase_service_key)  # <-- CHANGED THIS LINE
     except Exception as e:
         print(f"Failed to initialize Supabase client: {e}")
         supabase = None

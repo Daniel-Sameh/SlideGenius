@@ -2,7 +2,7 @@
 import re
 from typing import List
 from markdown import markdown as md_to_html
-from .huggingface import hf_service
+from .groq_service import groq_service
 
 VALID_THEMES = {
     "black", "white", "league", "sky", "beige",
@@ -58,5 +58,5 @@ def convert_markdown_to_reveal(title: str, markdown_text: str, theme: str = "bla
     slides = _split_markdown_into_slides(markdown_text)
     sections_html = "\n".join(_section_html_from_markdown(s) for s in slides)
 
-    html = hf_service.generateStyledHTML(title, markdown_text, theme)
+    html = groq_service.generateStyledHTML(title, markdown_text, theme)
     return html

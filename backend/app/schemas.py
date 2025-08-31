@@ -62,6 +62,7 @@ class PresentationResponse(BaseModel):
     markdown_content: str
     theme: str
     html_content: str
+    status: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

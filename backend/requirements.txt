@@ -13,4 +13,5 @@ supabase>=2.4.0
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.6
 requests>=2.31.0
-huggingface_hub
+
+ollama>=0.1.0

@@ -27,15 +27,14 @@ class Settings:
     # Database
     database_url: str = os.getenv("DATABASE_URL", "")
 
-    # HuggingFace settings
-    hf_api_key: str = os.getenv("HF_API_TOKEN", "")
-    hf_model_id: str = os.getenv("HF_MODEL_ID", "mistralai/Mistral-7B-Instruct-v0.2")
-    llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
-    use_mock_llm: bool = False
+    # LLM settings
+    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    use_mock_llm: bool = not bool(os.getenv("GROQ_API_KEY"))
 
     # CORS
     allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8080")
     # Parse the comma-separated string into a list
-    allowed_origins: List[str] = allowed_origins_str.split(',')
+    allowed_origins: List[str] = [o.strip().strip('"').strip("'") for o in allowed_origins_str.split(',') if o.strip()]
+                                 #allowed_origins_str.split(',')
 
 settings = Settings()

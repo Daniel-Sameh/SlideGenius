@@ -16,7 +16,8 @@ import {
   Save, 
   Eye, 
   Download,
-  Sparkles 
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 
 interface SlideGeneratorProps {
@@ -55,27 +56,63 @@ export function SlideGenerator({
     }
 
     setIsGenerating(true);
-    
+    setGeneratedHtml(''); // Clear previous results
+
     try {
-      const result = await presentationService.generateSlides({
+      // 1. Start the generation job
+      const { presentation_id } = await presentationService.startGeneratingSlides({
         markdown_input: markdown,
         title: title || 'My Presentation',
         theme: theme,
       });
-      
-      setGeneratedHtml(result.html || '');
-      
+
       toast({
-        title: "Success!",
-        description: isEditMode ? "Presentation updated - save to persist changes" : "Presentation created successfully",
+        title: "Generation Started!",
+        description: "Your presentation is being created. This may take a moment.",
       });
+
+      // 2. Poll for the result
+      const poll = async () => {
+        try {
+          const result = await presentationService.getGenerationStatus(presentation_id);
+          if (result.status === 'complete') {
+            setGeneratedHtml(result.html_content || result.html || '');
+            setMarkdown(result.markdown_content || markdown);
+            setIsGenerating(false);
+            toast({
+              title: "Success!",
+              description: "Presentation generated successfully.",
+            });
+          } else if (result.status === 'failed') {
+            setIsGenerating(false);
+            toast({
+              title: "Generation Failed",
+              description: "Something went wrong. Please try again.",
+              variant: "destructive",
+            });
+          } else {
+            // If still pending, poll again after a delay
+            setTimeout(poll, 5000); // Poll every 5 seconds
+          }
+        } catch (pollError) {
+          setIsGenerating(false);
+          toast({
+            title: "Error",
+            description: "Could not retrieve presentation status.",
+            variant: "destructive",
+          });
+        }
+      };
+
+      // Start the first poll
+      setTimeout(poll, 5000);
+
     } catch (error) {
       toast({
         title: "Generation Error",
-        description: "Could not generate presentation. Please try again.",
+        description: "Could not start the generation process. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -187,6 +224,16 @@ export function SlideGenerator({
                   <Eye className="w-4 h-4 mr-2" />
                   Preview
                 </Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  const newWindow = window.open('', '_blank');
+                  if (newWindow) {
+                    newWindow.document.write(generatedHtml);
+                    newWindow.document.close();
+                  }
+                }}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open in New Tab
+                </Button>
                 <Button type="button" variant="outline" onClick={downloadPresentation}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
@@ -290,16 +337,16 @@ export function SlideGenerator({
             <h2 className="text-xl font-semibold mb-4">Live Preview</h2>
             
             {generatedHtml ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden h-[600px]">
                 <iframe
                   srcDoc={generatedHtml}
-                  className="w-full h-[500px]"
+                  className="w-full h-full"
                   title="Generated Presentation Preview"
                   sandbox="allow-scripts allow-same-origin"
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[500px] border-2 border-dashed rounded-lg">
+              <div className="flex items-center justify-center h-[600px] border-2 border-dashed rounded-lg">
                 <p className="text-muted-foreground">
                   Your generated slides will appear here
                 </p>

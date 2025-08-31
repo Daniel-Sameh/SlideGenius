@@ -132,12 +132,12 @@ export default function DashboardPage() {
         <CardTitle className="truncate">{presentation.title}</CardTitle>
         <CardDescription className="flex items-center gap-2">
           <Clock className="w-3 h-3" />
-          Last updated: {formatDate(presentation.updatedAt)}
+          Last updated: {formatDate(presentation.updated_at || presentation.updatedAt || '')}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4">
         <p className="line-clamp-3 text-sm text-muted-foreground h-12">
-          {getDescriptionFromMarkdown(presentation.markdown)}
+          {getDescriptionFromMarkdown(presentation.markdown_content || presentation.markdown || '')}
         </p>
       </CardContent>
       <CardFooter className="flex justify-between">
@@ -237,7 +237,7 @@ export default function DashboardPage() {
             {presentations.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...presentations]
-                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                  .sort((a, b) => new Date(b.updated_at || b.updatedAt || '').getTime() - new Date(a.updated_at || a.updatedAt || '').getTime())
                   .slice(0, 6)
                   .map(presentation => (
                     <PresentationCard key={presentation.id} presentation={presentation} />

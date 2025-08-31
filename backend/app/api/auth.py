@@ -13,7 +13,7 @@ router = APIRouter(tags=["Authentication"])
 
 # Debug information
 print(f"Auth setup - Supabase URL: {settings.supabase_url}")
-print(f"Auth setup - Using Supabase: {bool(settings.supabase_url and settings.supabase_key)}")
+print(f"Auth setup - Using Supabase: {bool(settings.supabase_url and settings.supabase_service_key)}")
 
 # JWT settings
 JWT_SECRET = settings.jwt_secret or "development_secret_key"
@@ -34,11 +34,12 @@ MOCK_USERS = {
 
 # Try to initialize Supabase client
 supabase = None
-if settings.supabase_url and settings.supabase_key:
+if settings.supabase_url and settings.supabase_service_key: # Check for the SERVICE key
     try:
         from supabase import create_client
-        supabase = create_client(settings.supabase_url, settings.supabase_key)
-        print("Supabase client initialized successfully")
+        # THE FIX: Initialize the client with the SERVICE_ROLE_KEY
+        supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+        print("Supabase client initialized successfully with SERVICE ROLE.")
     except Exception as e:
         print(f"Failed to initialize Supabase client: {e}")
         supabase = None
@@ -50,17 +51,38 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("sub")
-        email = payload.get("email")
-        
-        if not user_id or not email:
+    print(f"get_current_user called with token: {token[:20]}...")
+    print(f"supabase is None: {supabase is None}")
+    
+    if not supabase:
+        # Fallback to mock user logic if Supabase isn't configured
+        print("Using mock auth")
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            user_id = payload.get("sub")
+            email = payload.get("email")
+            print(f"Decoded payload: user_id={user_id}, email={email}")
+            if not user_id or not email:
+                raise HTTPException(status_code=401, detail="Invalid token")
+            return {"id": user_id, "email": email}
+        except jwt.PyJWTError as e:
+            print(f"JWT decode error: {e}")
             raise HTTPException(status_code=401, detail="Invalid token")
-            
-        return {"id": user_id, "email": email}
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # The correct way: Validate the token with Supabase
+    print("Using Supabase auth")
+    try:
+        user_response = supabase.auth.get_user(token)
+        user = user_response.user
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        # Return a consistent user object
+        return {"id": str(user.id), "email": user.email}
+    except Exception as e:
+        print(f"Supabase auth error: {e}")
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
 
 # Add a proper request model
 class UserRegistration(BaseModel):
@@ -92,19 +114,19 @@ async def register(user_data: UserRegistration):
     else:
         # Real Supabase implementation
         try:
-            # Fix: Properly structure the sign_up request
+            # The key fix: use full_name instead of name in the metadata
             auth_response = supabase.auth.sign_up({
-                "full_name": user_data.name,
                 "email": user_data.email,
                 "password": user_data.password,
                 "options": {
                     "data": {
-                        "name": user_data.name  # This ensures name is saved in user_metadata
+                        "full_name": user_data.name,
+                        "name": user_data.name 
                     }
                 }
             })
             
-            # Return a more consistent response
+            # Return response remains the same
             return {
                 "id": auth_response.user.id,
                 "email": auth_response.user.email,
@@ -116,10 +138,14 @@ async def register(user_data: UserRegistration):
 
 @router.post("/auth/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    print(f"Login attempt: {form_data.username}")
+    print(f"Available users: {list(MOCK_USERS.keys())}")
     if not supabase:
         # Mock implementation
         user = MOCK_USERS.get(form_data.username)
+        print(f"Found user: {user is not None}")
         if not user or user["password"] != form_data.password:
+            print(f"Login failed for {form_data.username}")
             raise HTTPException(status_code=401, detail="Incorrect email or password")
         
         return {
@@ -135,7 +161,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             })
             return {
                 "access_token": response.session.access_token,
-                "token_type": "bearer"
+                "token_type": "bearer",
+                "user_id": response.user.id,
+                "email": response.user.email,
+                "full_name": response.user.user_metadata.get("full_name")
             }
         except Exception as e:
             raise HTTPException(status_code=401, detail="Incorrect email or password")

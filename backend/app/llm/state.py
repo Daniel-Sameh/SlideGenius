@@ -4,6 +4,7 @@ from typing import TypedDict, Optional
 class PipelineState(TypedDict, total=False):
     # Inputs
     markdown_input: str
+    title: str
 
     # LLM results
     theme: str

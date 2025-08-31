@@ -1,21 +1,10 @@
 import { getCookie } from 'cookies-next';
+import apiClient from './api-client';
 
 // Use local proxy in development, and the Vercel env variable in production
 const API_BASE_URL = process.env.NODE_ENV === 'development' 
   ? '/api'
   : `${process.env.NEXT_PUBLIC_API_URL}/api`;
-
-export interface Presentation {
-  id: string;
-  title: string;
-  // Remove description field since it doesn't exist in backend
-  markdown: string;
-  html?: string;
-  theme?: string;
-  createdAt: string;
-  updatedAt: string;
-  userId: string;
-}
 
 export interface GenerateSlideRequest {
   markdown_input: string;
@@ -23,13 +12,34 @@ export interface GenerateSlideRequest {
   theme?: string;
 }
 
+export interface PresentationGenerationStatus {
+  presentation_id: string;
+  status: 'pending' | 'complete' | 'failed';
+}
+
+export interface Presentation extends PresentationGenerationStatus {
+  id: string;
+  title: string;
+  markdown_content: string;
+  html_content?: string;
+  theme?: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  // Legacy fields for backward compatibility
+  markdown?: string;
+  html?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  userId?: string;
+}
+
 class PresentationService {
   private static instance: PresentationService;
-  private token: string | null = null;
+  private cache: Map<string, any> = new Map();
+  private listCache: any[] | null = null;
 
-  private constructor() {
-    // Don't set token in constructor for Next.js compatibility
-  }
+  private constructor() {}
 
   public static getInstance(): PresentationService {
     if (!PresentationService.instance) {
@@ -38,136 +48,96 @@ class PresentationService {
     return PresentationService.instance;
   }
 
-  private getToken(): string | null {
-    // Always get fresh token to ensure it's current
-    if (typeof window !== 'undefined') {
-      return getCookie('token') as string || localStorage.getItem('token') || this.token;
-    }
-    return this.token;
-  }
-
-  private getHeaders() {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    
-    const token = this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    return headers;
-  }
-
   public async getAllByUser(): Promise<Presentation[]> {
-    const headers = this.getHeaders();
-    
-    console.log('Fetching presentations from:', `${API_BASE_URL}/presentations/`);
-    console.log('With headers:', headers);
-    
-    const response = await fetch(`${API_BASE_URL}/presentations/`, {
-      method: 'GET',
-      headers: headers,
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch presentations:', response.status, response.statusText);
-      throw new Error(`Failed to fetch presentations: ${response.status}`);
+    if (this.listCache) {
+      return this.listCache;
     }
-    
-    return response.json();
+    try {
+      const response = await apiClient.get<Presentation[]>('/presentations');
+      this.listCache = response.data;
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch presentations:', error);
+      throw new Error('Failed to fetch presentations');
+    }
   }
 
   public async getById(id: string): Promise<Presentation> {
-    const headers = this.getHeaders();
-    
-    console.log('Fetching presentation by ID with headers:', headers); // Debug log
-    
-    const response = await fetch(`${API_BASE_URL}/presentations/${id}`, {
-      method: 'GET',
-      headers: headers,
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch presentation:', response.status, response.statusText);
-      throw new Error(`Failed to fetch presentation: ${response.status}`);
+    if (this.cache.has(id)) {
+      return this.cache.get(id);
     }
-    
-    return response.json();
+    try {
+      const response = await apiClient.get<Presentation>(`/presentations/${id}`);
+      this.cache.set(id, response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch presentation:', error);
+      throw new Error('Failed to fetch presentation');
+    }
+  }
+
+  public async startGeneratingSlides(request: GenerateSlideRequest): Promise<PresentationGenerationStatus> {
+    try {
+      const response = await apiClient.post<PresentationGenerationStatus>('/presentations/generate', request);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to start slide generation:', error);
+      throw new Error('Failed to start slide generation');
+    }
+  }
+
+  public async getGenerationStatus(id: string): Promise<Presentation> {
+    try {
+      const response = await apiClient.get<Presentation>(`/presentations/${id}/status`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get generation status:', error);
+      throw new Error('Failed to get generation status');
+    }
   }
 
   public async generateSlides(request: GenerateSlideRequest): Promise<Presentation> {
-    const headers = this.getHeaders();
-
-    const response = await fetch(`${API_BASE_URL}/presentations/generate`, {
-      method: 'POST',
-      headers: headers,
-      credentials: 'include',
-      body: JSON.stringify({
+    try {
+      const response = await apiClient.post<Presentation>('/presentations/generate', {
         markdown_input: request.markdown_input,
         title: request.title,
         theme: request.theme || 'default'
-      }),
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to generate presentation:', response.status, response.statusText);
-      throw new Error(`Failed to generate presentation: ${response.status}`);
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to generate presentation:', error);
+      throw new Error('Failed to generate presentation');
     }
-    
-    return response.json();
   }
 
   public async updatePresentation(id: string, data: Partial<Presentation>): Promise<Presentation> {
-    const headers = this.getHeaders();
-    
-    const response = await fetch(`${API_BASE_URL}/presentations/${id}`, {
-      method: 'PUT',
-      headers: headers,
-      credentials: 'include',
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to update presentation:', response.status, response.statusText);
-      throw new Error(`Failed to update presentation: ${response.status}`);
+    try {
+      const response = await apiClient.put<Presentation>(`/presentations/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update presentation:', error);
+      throw new Error('Failed to update presentation');
     }
-    
-    return response.json();
   }
 
   public async deletePresentation(id: string): Promise<boolean> {
-    const headers = this.getHeaders();
-    
-    const response = await fetch(`${API_BASE_URL}/presentations/${id}`, {
-      method: 'DELETE',
-      headers: headers,
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to delete presentation:', response.status, response.statusText);
-    }
-    
-    return response.ok;
-  }
-
-  public setToken(token: string) {
-    this.token = token;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', token);
-      document.cookie = `token=${token}; path=/; max-age=${7 * 24 * 60 * 60}`;
+    try {
+      const response = await apiClient.delete(`/presentations/${id}`);
+      if (response.status === 200 || response.status === 204) {
+        this.cache.delete(id);
+        this.listCache = null;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to delete presentation:', error);
+      return false;
     }
   }
 
-  public clearToken() {
-    this.token = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-    }
+  public clearCache(): void {
+    this.cache.clear();
+    this.listCache = null;
   }
 }
 

@@ -8,7 +8,7 @@ from .nodes import suggest_and_improve_node
 from .nodes import _generate_html_node
 from .nodes import _persist_node_factory
 from ..services.reveal import convert_markdown_to_reveal
-from ..services.huggingface import hf_service
+
 
 
 def build_pipeline(db_session: Session, user_id: str, title: str):
@@ -35,6 +35,3 @@ def build_pipeline(db_session: Session, user_id: str, title: str):
     app = graph.compile()
     return app
 
-# HuggingFace calls
-async def generate_with_llm(prompt: str) -> str:
-    return await hf_service.generate_text(prompt)

@@ -2,8 +2,11 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import presentationService from "@/services/presentation-service";
 import Cookies from 'js-cookie';
+import axios from "axios";
+import apiClient from "@/services/api-client";
+import presentationService from "@/services/presentation-service";
+import { useToast } from "@/hooks/use-toast";
 
 // Use same API pattern as presentation service
 const API_BASE_URL = process.env.NODE_ENV === 'development' 
@@ -30,15 +33,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserType>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const token = Cookies.get("token");
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-      presentationService.setToken(token);
+    // This effect rehydrates the user state from localStorage on page load
+    // so the UI updates instantly without waiting for an API call.
+    try {
+      const storedUser = localStorage.getItem("user");
+      const token = Cookies.get("token");
+      if (storedUser && token) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (error) {
+      console.error("Failed to parse user from localStorage", error);
+      // If parsing fails, clear the invalid data
+      localStorage.removeItem("user");
+      Cookies.remove("token");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -49,36 +62,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await fetch(`${API_BASE_URL}/auth/token`, {
-        method: 'POST',
+      // Use axios directly here because the content-type is different
+      const response = await axios.post(`${API_BASE_URL}/auth/token`, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Login failed');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       const token = data.access_token;
 
-      // Set the token in cookies and presentation service
-      Cookies.set('token', token, { expires: 7 });
-      presentationService.setToken(token);
+      // Set the token in a cookie
+      Cookies.set('token', token, { expires: 7, path: '/' });
 
-      const user = {
-        id: data.user_id || email,
-        email,
-        name: email.split('@')[0]
+      const userPayload = {
+        id: data.user_id,
+        email: data.email,
+        name: data.full_name || data.email.split('@')[0]
       };
       
-      setUser(user);
-      localStorage.setItem("user", JSON.stringify(user));
+      setUser(userPayload);
+      // Store user info in localStorage for quick UI updates on refresh
+      localStorage.setItem("user", JSON.stringify(userPayload));
       return true;
     } catch (error) {
       console.error("Login error:", error);
+      toast({
+        title: "Login Failed",
+        description: "Incorrect email or password. Please try again.",
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsLoading(false);
@@ -89,25 +102,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          name
-        }),
+      await apiClient.post('/auth/register', {
+        email,
+        password,
+        name
       });
 
-      if (!response.ok) {
-        throw new Error('Registration failed');
-      }
-
+      // Automatically log the user in after successful registration
       return await login(email, password);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
+      const errorMessage = error.response?.data?.detail || "An unknown error occurred.";
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsLoading(false);
@@ -117,8 +127,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
-    Cookies.remove("token");
-    presentationService.clearToken();
+    Cookies.remove("token", { path: '/' });
+    presentationService.clearCache();
+    // Redirect to home page after logout
     router.push('/');
   };
 

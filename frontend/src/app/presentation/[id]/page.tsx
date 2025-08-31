@@ -7,7 +7,7 @@ import presentationService from "@/services/presentation-service";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Maximize, ExternalLink } from "lucide-react";
 
 export default function PresentationViewPage() {
   const params = useParams();
@@ -37,7 +37,7 @@ export default function PresentationViewPage() {
           return;
         }
 
-        setPresentationHtml(presentation.html || null);
+        setPresentationHtml(presentation.html_content || presentation.html || null);
       } catch (error) {
         console.error('Error loading presentation:', error);
         toast({
@@ -76,10 +76,26 @@ export default function PresentationViewPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="fixed top-0 left-0 m-6 z-50">
-        <Button variant="outline" onClick={() => router.push("/dashboard")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
+      <div className="fixed top-4 right-4 z-[60] flex gap-1">
+        <Button size="sm" variant="secondary" className="h-8 w-8 p-0" onClick={() => router.push("/dashboard")} title="Back to Dashboard">
+          <ArrowLeft className="w-3 h-3" />
+        </Button>
+        <Button size="sm" variant="secondary" className="h-8 w-8 p-0" onClick={() => {
+          const newWindow = window.open('', '_blank');
+          if (newWindow) {
+            newWindow.document.write(presentationHtml);
+            newWindow.document.close();
+          }
+        }} title="Open in New Tab">
+          <ExternalLink className="w-3 h-3" />
+        </Button>
+        <Button size="sm" variant="secondary" className="h-8 w-8 p-0" onClick={() => {
+          const elem = document.documentElement;
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+          }
+        }} title="Fullscreen">
+          <Maximize className="w-3 h-3" />
         </Button>
       </div>
       <FullscreenPresentation 
