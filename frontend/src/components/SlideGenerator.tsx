@@ -35,7 +35,7 @@ export function SlideGenerator({
 }: SlideGeneratorProps) {
   const [markdown, setMarkdown] = useState(existingPresentation?.markdown_content || existingPresentation?.markdown || '');
   const [title, setTitle] = useState(existingPresentation?.title || '');
-  const [theme, setTheme] = useState(existingPresentation?.theme || 'default');
+  const [theme, setTheme] = useState(existingPresentation?.theme || 'ai-suggest');
   const [generatedHtml, setGeneratedHtml] = useState(existingPresentation?.html_content || existingPresentation?.html || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,7 +63,7 @@ export function SlideGenerator({
       const { presentation_id } = await presentationService.startGeneratingSlides({
         markdown_input: markdown,
         title: title || 'My Presentation',
-        theme: theme,
+        theme: theme || 'ai-suggest',
       });
 
       toast({
@@ -144,7 +144,7 @@ export function SlideGenerator({
       if (isEditMode && existingPresentation?.id) {
         await presentationService.updatePresentation(existingPresentation.id, {
           title: title || 'My Presentation',
-          markdown_input: markdown,
+          markdown_content: markdown,
           theme,
         });
         
@@ -245,7 +245,7 @@ export function SlideGenerator({
           </div>
         </div>
         
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Content Input</h2>
             
@@ -273,12 +273,22 @@ export function SlideGenerator({
                   value={theme}
                   onChange={(e) => setTheme(e.target.value)}
                 >
-                  <option value="default">Default Theme</option>
-                  <option value="dark">Dark Theme</option>
-                  <option value="blue">Blue Theme</option>
-                  <option value="minimal">Minimal Theme</option>
+                  <option value="ai-suggest">🤖 AI Suggest (Recommended)</option>
+                  <option value="black">Black</option>
+                  <option value="white">White</option>
+                  <option value="league">League</option>
+                  <option value="beige">Beige</option>
+                  <option value="sky">Sky</option>
+                  <option value="night">Night</option>
+                  <option value="serif">Serif</option>
+                  <option value="simple">Simple</option>
+                  <option value="solarized">Solarized</option>
+                  <option value="blood">Blood</option>
+                  <option value="moon">Moon</option>
                 </select>
               </div>
+              
+
               
               <div>
                 <label htmlFor="markdown-content" className="block text-sm font-medium mb-2">
@@ -318,7 +328,7 @@ export function SlideGenerator({
             <h2 className="text-xl font-semibold mb-4">Live Preview</h2>
             
             {generatedHtml ? (
-              <div className="border rounded-lg overflow-hidden h-[600px]">
+              <div className="border rounded-lg overflow-hidden h-[400px] lg:h-[700px]">
                 <iframe
                   srcDoc={generatedHtml}
                   className="w-full h-full"
@@ -327,7 +337,7 @@ export function SlideGenerator({
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[600px] border-2 border-dashed rounded-lg">
+              <div className="flex items-center justify-center h-[400px] lg:h-[700px] border-2 border-dashed rounded-lg">
                 <p className="text-muted-foreground">
                   Your generated slides will appear here
                 </p>

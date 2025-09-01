@@ -10,14 +10,14 @@ import uuid
 
 router = APIRouter(prefix="/presentations", tags=["Presentations"])
 
-def run_generation_pipeline(presentation_id: str, user_id: str, markdown_input: str, title: str):
+def run_generation_pipeline(presentation_id: str, user_id: str, markdown_input: str, title: str, theme: str = "ai-suggest"):
     """
     This function runs in the background and manages its own database session.
     """
     db = SessionLocal() # Create a new, independent session
     try:
         pipeline = build_pipeline(db, user_id, title)
-        result = pipeline.invoke({"markdown_input": markdown_input, "title": title})
+        result = pipeline.invoke({"markdown_input": markdown_input, "title": title, "theme": theme})
 
         presentation = db.query(Presentation).filter(Presentation.id == presentation_id).first()
         if presentation:
@@ -84,6 +84,7 @@ async def generate_presentation(
         user_id=current_user["id"],
         markdown_input=data.markdown_input,
         title=data.title,
+        theme=data.theme,
     )
 
     return {"presentation_id": presentation_id, "status": "pending"}

@@ -10,10 +10,16 @@ def suggest_and_improve_node(state: PipelineState) -> PipelineState:
     """Node to suggest improvements to markdown and choose a theme"""
     markdown_input = state.get("markdown_input", "")
     title = state.get("title", "")
+    user_theme = state.get("theme", "ai-suggest")
     
     # Use Groq service
     improved_markdown = groq_service.improve_markdown(title, markdown_input)
-    theme = groq_service.suggest_theme(improved_markdown)
+    
+    # Use AI suggestion only if user chose 'ai-suggest', otherwise use user's choice
+    if user_theme == "ai-suggest":
+        theme = groq_service.suggest_theme(improved_markdown)
+    else:
+        theme = user_theme
     
     return {
         **state,

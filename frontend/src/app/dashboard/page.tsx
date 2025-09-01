@@ -190,18 +190,18 @@ export default function DashboardPage() {
       </header>
       
       <main className="container py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold">Welcome, {user?.name}</h1>
+            <h1 className="text-2xl sm:text-4xl font-bold">Welcome, {user?.name}</h1>
             <p className="text-muted-foreground mt-1">Manage your presentations</p>
           </div>
           
           <Button 
             onClick={handleCreateNew} 
-            className="bg-gradient-primary hover:shadow-glow"
+            className="bg-gradient-primary hover:shadow-glow w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Create New Presentation
+            <span className="sm:inline">Create New Presentation</span>
           </Button>
         </div>
         
@@ -213,7 +213,7 @@ export default function DashboardPage() {
           
           <TabsContent value="all">
             {presentations.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
                 {presentations.map(presentation => (
                   <PresentationCard key={presentation.id} presentation={presentation} />
                 ))}
@@ -235,7 +235,7 @@ export default function DashboardPage() {
           
           <TabsContent value="recent">
             {presentations.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
                 {[...presentations]
                   .sort((a, b) => new Date(b.updated_at || b.updatedAt || '').getTime() - new Date(a.updated_at || a.updatedAt || '').getTime())
                   .slice(0, 6)

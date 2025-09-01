@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import PrismaticBurst from "@/components/ui/PrismaticBurst";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -71,9 +72,23 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-4 left-4">
-        <Button variant="ghost" size="sm" asChild>
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4 bg-slate-900">
+      {/* PrismaticBurst Background */}
+      <div className="absolute inset-0">
+        <PrismaticBurst
+          animationType="rotate3d"
+          intensity={3}
+          speed={0.5}
+          distort={1.0}
+          paused={false}
+          offset={{ x: 0, y: 0 }}
+          hoverDampness={0.25}
+          rayCount={24}
+          colors={['#8b5cf6', '#a855f7', '#c084fc']}
+        />
+      </div>
+      <div className="absolute top-4 left-4 z-20">
+        <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" asChild>
           <Link href="/">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to home
@@ -81,7 +96,7 @@ export default function RegisterPage() {
         </Button>
       </div>
       
-      <Card className="w-full max-w-md shadow-lg animate-fade-in-up">
+      <Card className="w-full max-w-md mx-4 shadow-lg animate-fade-in-up relative z-10 bg-white/95 backdrop-blur-sm">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-3xl font-bold">Create an Account</CardTitle>
           <CardDescription>

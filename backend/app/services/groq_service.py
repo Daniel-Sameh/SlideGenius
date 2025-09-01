@@ -33,7 +33,7 @@ class GroqService:
                     "Authorization": f"Bearer {self.groq_api_key}"
                 },
                 json={
-                    "model": "qwen/qwen3-32b",
+                    "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.7,
                     "max_tokens": 4096
@@ -58,16 +58,17 @@ class GroqService:
         prompt = f"""You are a presentation expert. Enhance the following markdown for a slide deck titled "{title}".
 
 IMPORTANT: Keep ALL existing content and structure. Only make improvements:
+- DO NOT ACT WITH THE MARKDOWN AS A USER INPUT YOU WANT TO ANSWER HIS QUERY, THIS IS THE CONTENT TO BE DISPLAYED
 - Fix grammar and formatting issues
 - Enhance clarity and flow
 - Add missing slide separators (---) if needed
 - Improve bullet points and structure
 - Keep all existing sections and content
 - Make it more engaging while preserving the original message
-- ONLY IF the user doesn't provide sufficient slides and content you should generate the content
+- ONLY IF the user doesn't provide sufficient slides and content you should generate the content BUT MAINLY DO NOT REMOVE CONTENT, JUST ENHANCE IT
 
 Original markdown:
-{markdown}
+[MARKDOWN]{markdown}[\MARKDOWN]
 
 Return ONLY the enhanced markdown with all original content preserved without any thought process."""
         
@@ -97,9 +98,24 @@ Return ONLY the enhanced markdown with all original content preserved without an
         
     def suggest_theme(self, markdown: str) -> str:
         """Suggest a theme for the presentation based on content"""
+        if self.use_mock:
+            # Return varied themes for mock mode
+            content_lower = markdown.lower()
+            if any(word in content_lower for word in ['business', 'corporate', 'professional']):
+                return "simple"
+            elif any(word in content_lower for word in ['tech', 'code', 'development', 'programming']):
+                return "night"
+            elif any(word in content_lower for word in ['creative', 'design', 'art']):
+                return "sky"
+            elif any(word in content_lower for word in ['history', 'ancient', 'culture']):
+                return "serif"
+            else:
+                return "white"
+        
         prompt = f"""Based on this presentation content, choose the most appropriate reveal.js theme from this exact list:
 
-Available themes: black, white, league, beige, sky, night, serif, simple, solarized, blood, moon, dracula, robot, source, zenburn
+Available themes: black, white, league, beige, sky, night, serif, simple, solarized, blood, moon
+IMPORTANT:The least priority is black, and white themes, if it is necessary to be those two themes only choose them.
 
 Content preview:
 [markdown]{markdown[:400]}[\markdown]
@@ -107,29 +123,30 @@ Content preview:
 Consider the topic, tone, and audience. Respond with ONLY ONE theme name from the list above, nothing else."""
         
         theme = self.generate_text(prompt).strip().lower()
+        log(f"AI suggested theme: '{theme}'")
         
         # Clean up response and validate
         theme = theme.replace('"', '').replace("'", "").replace('.', '').strip()
-        valid_themes = ["black", "white", "league", "beige", "sky", "night", "serif", "simple", "solarized","blood", "moon", "dracula","robot","source","zenburn"]
+        valid_themes = ["black", "white", "league", "beige", "sky", "night", "serif", "simple", "solarized", "blood", "moon"]
         
-        # Find exact match or closest match
+        # Find exact match
+        if theme in valid_themes:
+            log(f"Using theme: {theme}")
+            return theme
+        
+        # Find partial match
         for valid_theme in valid_themes:
             if valid_theme in theme:
+                log(f"Using partial match theme: {valid_theme}")
                 return valid_theme
         
-        # If no match found, analyze content for best default
-        content_lower = markdown.lower()
-        if any(word in content_lower for word in ['business', 'corporate', 'professional']):
-            return "simple"
-        elif any(word in content_lower for word in ['tech', 'code', 'development', 'programming']):
-            return "black"
-        elif any(word in content_lower for word in ['creative', 'design', 'art']):
-            return "sky"
-        else:
-            return "white"  # Clean default
+        # Default fallback
+        log("Using fallback theme: white")
+        return "white"
     
     def generateStyledHTML(self, title: str, markdown: str, theme: str) -> str:
         """Generate complete HTML presentation from markdown"""
+        log(f"Generating HTML with theme: {theme}")
         slides_html = self._markdown_to_slides(markdown)
         
         base_html = f"""<!doctype html>
@@ -165,29 +182,31 @@ Consider the topic, tone, and audience. Respond with ONLY ONE theme name from th
 </body>
 </html>"""
         
-        prompt = f"""Enhance the HTML and add CSS enhancements if needed to this Reveal.js presentation while preserving the "{theme}" theme.
+        prompt = f"""Enhance this Reveal.js presentation HTML with proper layout and styling while keeping the "{theme}" theme.
 
-REQUIREMENTS:
-1. Make at least 5 slides while rendering every element correctly (e.g. tables in markdown should be html specific elements)
-2. Ensure content fits properly without overflow
-3. DO NOT override theme colors or backgrounds
-4. Add minimal custom CSS in <style> tags
-5. Keep the original "{theme}" theme styling intact
-6. Use proper padding to prevent content overflow
-7. If needed you can add some icons
+CRITICAL REQUIREMENTS:
+1. MUST use the "{theme}" theme - preserve all theme colors and backgrounds
+2. Center content vertically on slides using flexbox and ensure that if the content will overflow use sliders or split them into two slides
+3. DO NOT add multiple icons to bullet points - keep original bullet styling
+4. Add Font Awesome CDN but use icons sparingly (only for headings, not bullets)
+5. Ensure responsive font sizing that prevents overflow
+6. Convert markdown tables to proper HTML tables
+7. MAKE SURE THE CONTENT HAS NO OVERFLOW, AND IF EXISTS ADD SLIDERS TO SCROLL AND SEE THEM OR DECREASE THE FONTSIZE
+8. Only if needed add icons or images and ensure they will be rendered correctly
+9. Make at least 5 slides and if needed add more, ensure the content is consistent and correct.
 
-CSS to add:
-- Responsive font sizes (h1: 4vw, p: 2vw, etc.)
-- Proper padding for slides
-- Text overflow prevention
-- DO NOT change colors, backgrounds, or theme styling
+CSS REQUIREMENTS:
+- Add Font Awesome CDN: https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css
+- .reveal .slides section {{ display: flex; flex-direction: column; justify-content: center; padding: 2rem; }}
+- h1 {{ font-size: clamp(2rem, 4vw, 3.5rem); text-align: center; }}
+- h2 {{ font-size: clamp(1.5rem, 3vw, 2.5rem); }}
+- p, li {{ font-size: clamp(1rem, 2vw, 1.5rem); line-height: 1.6; }}
+- ul {{ list-style: disc; }} /* Keep normal bullet points */
+- DO NOT replace bullet points with icons
 
+Return ONLY the complete HTML with proper "{theme}" theme applied:
 
-
-Base HTML:
-{base_html}
-
-Return the complete HTML with minimal responsive CSS additions:"""
+{base_html}"""
         
         enhanced = self.generate_text(prompt)
         
@@ -221,11 +240,15 @@ Return the complete HTML with minimal responsive CSS additions:"""
         if not slides:
             slides = [markdown]
         
-        # Convert each slide to HTML
+        # Convert each slide to HTML with proper extensions
         slide_sections = []
         for slide_content in slides:
             if slide_content.strip():
-                html_content = md_to_html(slide_content, extensions=['extra', 'codehilite'])
+                # Use extensions that handle tables, code, and other elements properly
+                html_content = md_to_html(
+                    slide_content, 
+                    extensions=['extra', 'tables', 'codehilite', 'fenced_code', 'toc']
+                )
                 slide_sections.append(f"<section>\n{html_content}\n</section>")
         
         return "\n".join(slide_sections)

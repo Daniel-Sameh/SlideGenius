@@ -5,9 +5,9 @@ class PipelineState(TypedDict, total=False):
     # Inputs
     markdown_input: str
     title: str
+    theme: str  # User-selected theme or 'ai-suggest'
 
     # LLM results
-    theme: str
     improved_markdown: str
 
     # Generated
