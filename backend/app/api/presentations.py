@@ -44,34 +44,49 @@ async def generate_presentation(
     db: Session = Depends(get_db_session)
 ):
     """Initiate a presentation generation job."""
-    # Create a presentation record with a 'pending' status
-    new_presentation = Presentation(
-        id=uuid.uuid4(),
-        user_id=current_user["id"],
-        title=data.title or "Untitled",
-        theme=data.theme or "default",
-        status="pending",
-        markdown_content=data.markdown_input, # Save markdown immediately
-        html_content="" # Start with empty html
-    )
-    db.add(new_presentation)
+    # Check if user already has a presentation with this title
+    existing_presentation = db.query(Presentation).filter(
+        Presentation.user_id == current_user["id"],
+        Presentation.title == (data.title or "Untitled")
+    ).first()
+    
+    if existing_presentation:
+        # Update existing presentation
+        existing_presentation.markdown_content = data.markdown_input
+        existing_presentation.theme = data.theme or "default"
+        existing_presentation.status = "pending"
+        existing_presentation.html_content = ""
+        presentation_id = str(existing_presentation.id)
+    else:
+        # Create new presentation
+        new_presentation = Presentation(
+            id=uuid.uuid4(),
+            user_id=current_user["id"],
+            title=data.title or "Untitled",
+            theme=data.theme or "default",
+            status="pending",
+            markdown_content=data.markdown_input,
+            html_content=""
+        )
+        db.add(new_presentation)
+        presentation_id = str(new_presentation.id)
+    
     try:
         db.commit()
-        db.refresh(new_presentation)
     except Exception:
         db.rollback()
         raise
 
-    # Add the long-running task to the background WITHOUT the db session
+    # Add the long-running task to the background
     background_tasks.add_task(
         run_generation_pipeline,
-        presentation_id=str(new_presentation.id),
+        presentation_id=presentation_id,
         user_id=current_user["id"],
         markdown_input=data.markdown_input,
         title=data.title,
     )
 
-    return {"presentation_id": str(new_presentation.id), "status": "pending"}
+    return {"presentation_id": presentation_id, "status": "pending"}
 
 
 @router.get("/{presentation_id}/status", response_model=PresentationResponse)
@@ -134,6 +149,42 @@ async def get_presentation(
     # This was the bug. It was not returning all fields.
     # By returning the presentation object directly, FastAPI will correctly
     # map it to the PresentationResponse model.
+    return presentation
+
+@router.put("/{presentation_id}", response_model=PresentationResponse)
+async def update_presentation(
+    presentation_id: str,
+    data: PresentationCreate,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db_session)
+):
+    """Update an existing presentation."""
+    try:
+        presentation = db.query(Presentation).filter(
+            Presentation.id == uuid.UUID(presentation_id),
+            Presentation.user_id == uuid.UUID(current_user["id"])
+        ).first()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid presentation ID format")
+
+    if not presentation:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+
+    # Update fields
+    if data.title:
+        presentation.title = data.title
+    if data.markdown_input:
+        presentation.markdown_content = data.markdown_input
+    if data.theme:
+        presentation.theme = data.theme
+
+    try:
+        db.commit()
+        db.refresh(presentation)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update presentation")
+
     return presentation
 
 @router.delete("/{presentation_id}")

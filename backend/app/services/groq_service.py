@@ -69,7 +69,7 @@ IMPORTANT: Keep ALL existing content and structure. Only make improvements:
 Original markdown:
 {markdown}
 
-Return the enhanced markdown with all original content preserved."""
+Return ONLY the enhanced markdown with all original content preserved without any thought process."""
         
         improved = self.generate_text(prompt)
         
@@ -165,20 +165,29 @@ Consider the topic, tone, and audience. Respond with ONLY ONE theme name from th
 </body>
 </html>"""
         
-        prompt = f"""Enhance this HTML presentation with creative styling for the "{theme}" theme.
+        prompt = f"""Enhance the HTML and add CSS enhancements if needed to this Reveal.js presentation while preserving the "{theme}" theme.
 
 REQUIREMENTS:
-1. Add custom CSS in <style> tags in the <head>
-2. Use colors/gradients that match "{theme}" theme
-3. Add animations and visual elements
-4. Ensure full window width/height
-5. Make content fit properly in slides
-6. Return COMPLETE, VALID HTML
+1. Make at least 5 slides while rendering every element correctly (e.g. tables in markdown should be html specific elements)
+2. Ensure content fits properly without overflow
+3. DO NOT override theme colors or backgrounds
+4. Add minimal custom CSS in <style> tags
+5. Keep the original "{theme}" theme styling intact
+6. Use proper padding to prevent content overflow
+7. If needed you can add some icons
+
+CSS to add:
+- Responsive font sizes (h1: 4vw, p: 2vw, etc.)
+- Proper padding for slides
+- Text overflow prevention
+- DO NOT change colors, backgrounds, or theme styling
+
+
 
 Base HTML:
 {base_html}
 
-Return the complete enhanced HTML:"""
+Return the complete HTML with minimal responsive CSS additions:"""
         
         enhanced = self.generate_text(prompt)
         

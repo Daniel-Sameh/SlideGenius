@@ -33,10 +33,10 @@ export function SlideGenerator({
   existingPresentation,
   onSave 
 }: SlideGeneratorProps) {
-  const [markdown, setMarkdown] = useState(existingPresentation?.markdown || '');
+  const [markdown, setMarkdown] = useState(existingPresentation?.markdown_content || existingPresentation?.markdown || '');
   const [title, setTitle] = useState(existingPresentation?.title || '');
   const [theme, setTheme] = useState(existingPresentation?.theme || 'default');
-  const [generatedHtml, setGeneratedHtml] = useState(existingPresentation?.html || '');
+  const [generatedHtml, setGeneratedHtml] = useState(existingPresentation?.html_content || existingPresentation?.html || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -78,6 +78,7 @@ export function SlideGenerator({
           if (result.status === 'complete') {
             setGeneratedHtml(result.html_content || result.html || '');
             setMarkdown(result.markdown_content || markdown);
+            setTheme(result.theme || theme);
             setIsGenerating(false);
             toast({
               title: "Success!",
@@ -143,8 +144,7 @@ export function SlideGenerator({
       if (isEditMode && existingPresentation?.id) {
         await presentationService.updatePresentation(existingPresentation.id, {
           title: title || 'My Presentation',
-          markdown,
-          html: generatedHtml,
+          markdown_input: markdown,
           theme,
         });
         
@@ -241,26 +241,7 @@ export function SlideGenerator({
               </>
             )}
             
-            {isEditMode && generatedHtml && user && (
-              <Button 
-                type="button"
-                onClick={savePresentation}
-                disabled={isSaving}
-                className="bg-gradient-primary hover:shadow-glow"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Changes
-                  </>
-                )}
-              </Button>
-            )}
+
           </div>
         </div>
         

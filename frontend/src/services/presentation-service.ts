@@ -113,6 +113,8 @@ class PresentationService {
   public async updatePresentation(id: string, data: Partial<Presentation>): Promise<Presentation> {
     try {
       const response = await apiClient.put<Presentation>(`/presentations/${id}`, data);
+      this.cache.delete(id);
+      this.listCache = null;
       return response.data;
     } catch (error) {
       console.error('Failed to update presentation:', error);
